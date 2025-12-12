@@ -147,6 +147,15 @@ def parse_ecg_pdf(pdf_bytes: bytes) -> Tuple[Optional[PatientContext], Optional[
             ],
             text,
         ),
+        p_duration_ms=_num_from_patterns(
+            [
+                r"p\s*[-]?\s*duur\s*(?:[:=\-]|is)?\s*([^\s]+)",
+                r"p-?wave(?:\s*duration)?\s*(?:[:=\-]|is)?\s*([^\s]+)",
+                r"p[-\s]?wave[-\s]?duration\s*(?:[:=\-]|is)?\s*([^\s]+)",
+                r"p[-\s]?duur(?:[:=\-]|is)?\s*([^\s]+)",
+            ],
+            text,
+        ),
         t_axis_deg=_num_from_patterns(
             [
                 r"t[-\s]?(?:axis|as)\s*(?:[:=\-]|is)?\s*([^\s]+)",

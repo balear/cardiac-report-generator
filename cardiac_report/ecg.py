@@ -11,13 +11,26 @@ def compute_ecg_metrics(measurements: ECGMeasurements) -> ECGMetrics:
 
     summary: List[str] = []
 
-    qtcf = measurements.qtc_interval_ms
-    if qtcf is None and measurements.qt_interval_ms and measurements.vent_rate:
+    # Compute QTc by Bazett and Fridericia when raw QT and ventricular rate are available.
+    qtcb = None
+    qtcf = None
+    if measurements.qt_interval_ms is not None and measurements.vent_rate is not None:
         try:
-            rr = 60.0 / float(measurements.vent_rate)
-            qtcf = round(float(measurements.qt_interval_ms) / rr**0.5, 1)
+            rr = 60.0 / float(measurements.vent_rate)  # RR interval in seconds
+            qt_raw = float(measurements.qt_interval_ms)
+            qtcb = round(qt_raw / (rr ** 0.5), 1)  # Bazett
+            qtcf = round(qt_raw / (rr ** (1.0 / 3.0)), 1)  # Fridericia
         except Exception:
+            qtcb = None
             qtcf = None
+    else:
+        # If a pre-corrected QT value was provided, use as fallback for both
+        if measurements.qtc_interval_ms is not None:
+            try:
+                val = float(measurements.qtc_interval_ms)
+                qtcb = qtcf = round(val, 1)
+            except Exception:
+                qtcb = qtcf = None
 
     tachy = bool(measurements.vent_rate and measurements.vent_rate > 100)
     brady = bool(measurements.vent_rate and measurements.vent_rate < 50)
@@ -38,17 +51,24 @@ def compute_ecg_metrics(measurements: ECGMeasurements) -> ECGMetrics:
         summary.append(f"Frequentie: {measurements.vent_rate:.0f} bpm")
     if measurements.pr_interval_ms is not None:
         summary.append(f"PR {measurements.pr_interval_ms:.0f} ms")
+    if measurements.p_duration_ms is not None:
+        summary.append(f"P duur {measurements.p_duration_ms:.0f} ms")
     if measurements.qrs_duration_ms is not None:
         summary.append(f"QRS {measurements.qrs_duration_ms:.0f} ms")
     if measurements.qt_interval_ms is not None:
         qt_line = f"QT {measurements.qt_interval_ms:.0f} ms"
-        if qtcf is not None:
-            qt_line += f" (QTc {qtcf:.0f} ms)"
+        if qtcb is not None and qtcf is not None:
+            qt_line += f" (QTcB {qtcb:.0f} ms; QTcF {qtcf:.0f} ms)"
+        elif qtcb is not None:
+            qt_line += f" (QTcB {qtcb:.0f} ms)"
+        elif qtcf is not None:
+            qt_line += f" (QTcF {qtcf:.0f} ms)"
         summary.append(qt_line)
     if axis_deviation:
         summary.append(axis_deviation)
 
     return ECGMetrics(
+        qtcb_ms=qtcb,
         qtcf_ms=qtcf,
         tachy_flag=tachy,
         brady_flag=brady,
@@ -64,7 +84,8 @@ def generate_ecg_report(measurements: ECGMeasurements, metrics: ECGMetrics) -> s
     if measurements.recorded_at:
         lines.append(f"ECG geregistreerd op {measurements.recorded_at}.")
     else:
-        lines.append("ECG registratie.")
+        # Default succinct text for routine normal ECGs
+        lines.append("Normaal sinusaal ritme.")
 
     if measurements.rhythm_summary:
         lines.append(f"Ritme: {measurements.rhythm_summary}.")
@@ -78,8 +99,12 @@ def generate_ecg_report(measurements: ECGMeasurements, metrics: ECGMetrics) -> s
         interval_parts.append(f"QRS {measurements.qrs_duration_ms:.0f} ms")
     if measurements.qt_interval_ms is not None:
         qt_line = f"QT {measurements.qt_interval_ms:.0f} ms"
-        if metrics.qtcf_ms is not None:
-            qt_line += f" (QTc {metrics.qtcf_ms:.0f} ms)"
+        if metrics.qtcb_ms is not None and metrics.qtcf_ms is not None:
+            qt_line += f" (QTcB {metrics.qtcb_ms:.0f} ms; QTcF {metrics.qtcf_ms:.0f} ms)"
+        elif metrics.qtcf_ms is not None:
+            qt_line += f" (QTcF {metrics.qtcf_ms:.0f} ms)"
+        elif metrics.qtcb_ms is not None:
+            qt_line += f" (QTcB {metrics.qtcb_ms:.0f} ms)"
         interval_parts.append(qt_line)
     if interval_parts:
         lines.append(", ".join(interval_parts) + ".")
@@ -91,8 +116,15 @@ def generate_ecg_report(measurements: ECGMeasurements, metrics: ECGMetrics) -> s
         axis_parts.append(f"QRS-as {measurements.qrs_axis_deg:.0f}°")
     if measurements.t_axis_deg is not None:
         axis_parts.append(f"T-as {measurements.t_axis_deg:.0f}°")
-    if axis_parts:
-        lines.append(", ".join(axis_parts) + ".")
+    # Do not include acquisition device or T-axis in the textual report per user preference
+    # Only include P-axis and QRS-axis (if present)
+    axis_filtered: List[str] = []
+    if measurements.p_axis_deg is not None:
+        axis_filtered.append(f"P-as {measurements.p_axis_deg:.0f}°")
+    if measurements.qrs_axis_deg is not None:
+        axis_filtered.append(f"QRS-as {measurements.qrs_axis_deg:.0f}°")
+    if axis_filtered:
+        lines.append(", ".join(axis_filtered) + ".")
 
     if metrics.axis_deviation and metrics.axis_deviation not in lines[-1]:  # avoid duplicate sentences
         lines.append(metrics.axis_deviation + ".")
@@ -120,8 +152,15 @@ def summarize_ecg_for_brief(measurements: ECGMeasurements, metrics: ECGMetrics) 
         parts.append(f"HF {measurements.vent_rate:.0f} bpm")
     if measurements.qrs_duration_ms is not None:
         parts.append(f"QRS {measurements.qrs_duration_ms:.0f} ms")
-    if metrics.qtcf_ms is not None:
-        parts.append(f"QTc {metrics.qtcf_ms:.0f} ms")
+    if measurements.p_duration_ms is not None:
+        parts.append(f"P duur {measurements.p_duration_ms:.0f} ms")
+    if metrics.qtcb_ms is not None and metrics.qtcf_ms is not None:
+        parts.append(f"QTcB {metrics.qtcb_ms:.0f} ms")
+        parts.append(f"QTcF {metrics.qtcf_ms:.0f} ms")
+    elif metrics.qtcf_ms is not None:
+        parts.append(f"QTcF {metrics.qtcf_ms:.0f} ms")
+    elif metrics.qtcb_ms is not None:
+        parts.append(f"QTcB {metrics.qtcb_ms:.0f} ms")
     elif measurements.qt_interval_ms is not None:
         parts.append(f"QT {measurements.qt_interval_ms:.0f} ms")
     if metrics.axis_deviation:

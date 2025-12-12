@@ -747,6 +747,14 @@ def compose_brief_letter(
     lines.append("-------------------------")
     lines.append(_fmt_block(bespreking))
     lines.append("")
+    # Insert Plan under Bespreking when a saved Beleid plan exists
+    beleid_sec = _find_section(["beleid", "plan"]) or {}
+    if beleid_sec and (beleid_sec.get("text") or "").strip():
+        # After the Bespreking block, add a dedicated Plan section
+        lines.append("Plan")
+        lines.append("-------------------------")
+        lines.append(beleid_sec.get("text", "-"))
+        lines.append("")
     lines.append("Met collegiale hoogachting,")
     lines.append("Dr. A. Ballet Cardiologie")
 

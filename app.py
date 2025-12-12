@@ -61,6 +61,7 @@ from cardiac_report.holter import (
 from cardiac_report.pdf_ingest.fietstest_pdf import parse_fietstest_pdf
 from cardiac_report.pdf_ingest.ecg_pdf import parse_ecg_pdf
 from cardiac_report.pdf_ingest.utils import PDF_DEPENDENCY_MESSAGE, pdf_dependency_available
+from cardiac_report.beleid import CLINICAL_SCENARIOS
 
 
 def safe_rerun() -> None:
@@ -373,7 +374,7 @@ with st.sidebar:
     patient_identifier = st.text_input(
         "Patiënt ID",
         key="patient_identifier",
-        placeholder="bv. HIS-nummer",
+        placeholder="",
     )
     
     # Auto-complete patient data when ID is entered
@@ -626,135 +627,7 @@ if module == "Beleid":
     st.header("Beleid — Klinisch Plan Generator")
     st.markdown("Selecteer een klinisch scenario om een aanbevolen beleid/plan te genereren.")
 
-    # Definieer klinische scenario's met bijbehorende plannen
-    CLINICAL_SCENARIOS = {
-        "Dyspnoe work-up (ambulant)": {
-            "description": "Stappenplan voor evaluatie van dyspnoe bij ambulante patiënt",
-            "plan": [
-                "**Anamnese**: duur, triggers, orthopnoe, PND, voorgeschiedenis hartfalen/COPD",
-                "**Lichamelijk onderzoek**: RR, saturatie, auscultatie longen + hart, perifeer oedeem",
-                "**Bloedonderzoek**: Hb, NT-proBNP, nierfunctie, TSH",
-                "**ECG**: ritme, oude infarcten, linkerventrikelhypertrofie",
-                "**Thoraxfoto**: cardiomegalie, pulmonale stuwing, longpathologie",
-                "**Echocardiografie**: LV-functie, klepafwijkingen, pulmonale druk",
-                "**Longfunctie** (indien verdenking COPD/astma)",
-                "**Inspanningstest** (bij onduidelijke diagnose of follow-up hartfalen)",
-            ],
-        },
-        "Nieuwe diagnose hartfalen (HFrEF)": {
-            "description": "Initieel beleid bij nieuw gediagnosticeerd hartfalen met verminderde ejectiefractie",
-            "plan": [
-                "**Diagnostiek**: echo (LVEF <40%), ECG, bloedonderzoek (Hb, nieren, elektrolyten, NT-proBNP)",
-                "**Etiologie**: CAD uitsluiten (evt. coronair angiogram), myocarditis/DCM overwegen",
-                "**Medicatie starten** (GDMT):",
-                "  - ACE-remmer of ARNi (sacubitril/valsartan)",
-                "  - Bètablokker (bisoprolol, carvedilol, metoprololsuccinaat)",
-                "  - MRA (spironolacton, eplerenon)",
-                "  - SGLT2-remmer (dapagliflozin, empagliflozin)",
-                "**Diuretica** bij volume-overload (furosemide titreren op klachten/gewicht)",
-                "**Leefstijladviezen**: zoutbeperking (<6g/dag), vochtbeperking (1,5–2L/dag), dagelijks wegen",
-                "**Controle**: polikliniek 2–4 weken voor titratie, daarna 3-maandelijks",
-                "**ICD-evaluatie** na 3 maanden optimale medicatie indien LVEF ≤35%",
-                "**CRT-evaluatie** bij QRS ≥130ms (LBBB-morfologie)",
-            ],
-        },
-        "Nieuw atriumfibrilleren (eerste episode)": {
-            "description": "Stappenplan bij eerste gedetecteerde AF-episode",
-            "plan": [
-                "**Symptomen**: palpitaties, dyspnoe, vermoeidheid, duizeligheid, angina",
-                "**Hemodynamische stabiliteit** beoordelen: RR, saturatie, tekenen decompensatie",
-                "**ECG**: bevestig AF, zoek naar pre-excitatie (WPW), tekenen ischemie",
-                "**Bloedonderzoek**: TSH, elektrolyten, nierfunctie, bloedbeeld",
-                "**Echocardiografie**: kleplijden, LV-functie, LA-dilatatie, structureel hartlijden",
-                "**CHA₂DS₂-VASc score** bepalen → anticoagulatie indien ≥2 (man) of ≥3 (vrouw)",
-                "**HAS-BLED score** (bloedingsrisico inschatten)",
-                "**Ritme vs. frequentiecontrole**:",
-                "  - Cardioversie overwegen bij jonge patiënt, eerste episode, symptomatisch",
-                "  - Frequentiecontrole (bètablokker, digoxine, calciumantagonist) bij ouderen/asymptomatisch",
-                "**Anticoagulatie**: DOAC (apixaban, rivaroxaban, edoxaban) of VKA (indien kunstklep/MR)",
-                "**Follow-up**: polikliniek 4–6 weken, Holter overweeg bij recidief vermoeden",
-            ],
-        },
-        "Thoraxpijn op SEH (HEART-score)": {
-            "description": "Risicostratificatie en beleid bij thoraxpijn volgens HEART-score",
-            "plan": [
-                "**HEART-score bepalen**:",
-                "  - History (anamnese): 0–2 punten",
-                "  - ECG: 0–2 punten",
-                "  - Age: 0–2 punten",
-                "  - Risk factors (DM, roken, hypertensie, hyperchol., fam. anamnese): 0–2 punten",
-                "  - Troponin: 0–2 punten",
-                "**HEART 0–3 (laag risico)**:",
-                "  - Ontslag mogelijk, poliklinische follow-up, leefstijladviezen",
-                "**HEART 4–6 (matig risico)**:",
-                "  - Opname observatie, troponine herhalen na 3–6 uur",
-                "  - Fietstest of CT-coronairs overweging",
-                "**HEART 7–10 (hoog risico)**:",
-                "  - Opname CCU, invasieve diagnostiek (coronair angiogram) overwegen",
-                "  - DAPT + statine starten, cardioloog consulteren",
-            ],
-        },
-        "Hypertensie work-up (primair)": {
-            "description": "Uitgebreide evaluatie en behandeling bij nieuw ontdekte hypertensie",
-            "plan": [
-                "**Thuismeting**: gemiddelde 2×/dag gedurende 7 dagen (streef <135/85 mmHg)",
-                "**Anamnese**: duur klachten, hoofdpijn, neus bloeden, familieanamnese",
-                "**Secundaire hypertensie** screenen:",
-                "  - Nierfunctie (creatinine, eGFR), urinesediment, albumine/creat-ratio",
-                "  - TSH (hypo-/hyperthyreoidie)",
-                "  - Renine/aldosteron-ratio (bij hypoK of therapieresistent)",
-                "  - Slaapapneu-screening (Epworth, ronchopathie)",
-                "**Orgaanschade**:",
-                "  - ECG (LVH, oude infarcten)",
-                "  - Echo hart (LV-massa, diastole)",
-                "  - Fundoscopie (bij ernstige HT)",
-                "**Cardiovasculair risicoprofiel**: lipiden, glucose, roken",
-                "**Leefstijladviezen**: zoutbeperking, gewichtsverlies, beweging, alcoholmatiging",
-                "**Medicatie** (bij persisteren >140/90):",
-                "  - Eerste keus: ACE-remmer of calciumantagonist of thiazide",
-                "  - Combinatietherapie bij onvoldoende effect",
-                "**Follow-up**: 4–6 weken na start, daarna 3-maandelijks tot goed ingesteld",
-            ],
-        },
-        "Post-MI secundaire preventie": {
-            "description": "Beleid en medicatie na myocardinfarct ter preventie van recidief",
-            "plan": [
-                "**DAPT**: acetylsalicylzuur 80mg + P2Y12-remmer (ticagrelor 90mg 2×/d of prasugrel 10mg 1×/d) gedurende 12 maanden",
-                "**Statine**: atorvastatine 80mg of rosuvastatine 40mg (LDL-doel <1,4 mmol/L, liefst <1,0)",
-                "**Bètablokker**: bisoprolol, metoprolol, carvedilol (zeker bij LVEF <40%)",
-                "**ACE-remmer** (bij LVEF <40% of hypertensie/DM): ramipril, perindopril",
-                "**Eplerenon** overwegen bij LVEF <40% + tekenen HF of DM",
-                "**Leefstijl**: stoppen met roken, cardiale revalidatie, mediterraan dieet",
-                "**Bloeddruk**: streef <140/90 (indien DM/CKD: <130/80)",
-                "**Glucose**: HbA1c <7% bij diabetici, SGLT2-remmer overwegen",
-                "**Follow-up**:",
-                "  - Polikliniek 6 weken (echo-controle, medicatie-check)",
-                "  - Jaarlijkse controle met lipiden, nierfunctie, echo (bij LV-dysfunctie)",
-            ],
-        },
-        "Syncope work-up": {
-            "description": "Diagnostisch stappenplan bij syncope (bewustzijnsverlies)",
-            "plan": [
-                "**Anamnese**: prodromale symptomen, triggers (opstaan, mictie, hoesten), duur, herstel",
-                "**Heteroanamnese**: convulsies, tongbeet, incontinentie (DD epilepsie)",
-                "**Lichamelijk onderzoek**: orthostatische hypotensie (RR liggend/staand), cardiaal/neurologisch",
-                "**ECG**: geleidingsstoornissen (AV-blok), aritmieën (QTc, Brugada, pre-excitatie)",
-                "**Bloedonderzoek**: Hb, glucose, elektrolyten",
-                "**Hoog-risico kenmerken** (opname indicatie):",
-                "  - Inspanningsgebonden syncope",
-                "  - Hartfalen/structureel hartlijden",
-                "  - Familie-anamnese plotse dood <40 jaar",
-                "  - ECG-afwijkingen (QTc >460ms, Brugada, ARVD)",
-                "**Aanvullend** (afhankelijk van verdenking):",
-                "  - Echocardiografie (structureel hartlijden)",
-                "  - Holter / event recorder (aritmiedetectie)",
-                "  - Tilt-table test (vasovagale syncope)",
-                "  - EPO (elektrische stimulatie bij geleidingsstoornis)",
-                "  - Neurologisch consult (indien verdenking epilepsie/CVA)",
-                "**Behandeling**: oorzaakspecifiek (PM bij bradycardie, ICD bij maligne aritmie, vochtinname/compressiekousen bij orthostatisme)",
-            ],
-        },
-    }
+    # Scenario's worden geladen uit cardiac_report/beleid.py
 
     # Scenario selectie
     scenario_names = list(CLINICAL_SCENARIOS.keys())
@@ -783,7 +656,7 @@ if module == "Beleid":
     st.subheader("Plan aanpassen (optioneel)")
     custom_plan = st.text_area(
         "Bewerk of personaliseer het plan",
-        value=st.session_state.get("beleid_custom_plan", plan_text),
+        value=st.session_state.get("beleid_custom_plan", ""),
         height=300,
         key="beleid_custom_plan",
     )
@@ -880,12 +753,33 @@ if module == "Brief":
                 "enabled": True,
             })
 
+    # Include any saved Beleid / plan text as an investigation so it appears in the generated brief
+    beleid_meta = sections.get("beleid_plan", {}) or {}
+    beleid_text = (beleid_meta.get("text") or "").strip()
+    if beleid_text:
+        investigations.append({
+            "label": "Beleid",
+            "text": beleid_text,
+            "performed_on": beleid_meta.get("performed_on"),
+            "enabled": True,
+        })
+
     if not investigations:
         st.warning("Nog geen volledige verslagen gevonden. Gebruik eerst een module om een verslag te genereren.")
 
     full_keys = [key for _, key in full_investigation_defs]
 
     bespreking = st.text_area("Bespreking", value=st.session_state.get("brief_bespreking", ""), height=140, key="brief_bespreking")
+    # Optional Plan textarea shown in the Brief UI so users can type a plan directly.
+    # Use the same session_state key as the Beleid editor so both fields stay synchronized.
+    brief_plan_widget = st.text_area(
+        "Plan",
+        value=st.session_state.get("beleid_custom_plan", ""),
+        height=120,
+        key="beleid_custom_plan",
+    )
+    # Read the plan value from the shared session key
+    brief_plan = st.session_state.get("beleid_custom_plan", "")
 
     clinical_exam = {
         "pols": pols_val or None,
@@ -895,6 +789,15 @@ if module == "Brief":
         "bmi": bmi_val,
         "auscultation": auscultatie.strip() if auscultatie else None,
     }
+
+    # If the user typed a Plan in the brief UI, include it as an investigation so it's rendered
+    if brief_plan and str(brief_plan).strip():
+        investigations.append({
+            "label": "Plan",
+            "text": brief_plan,
+            "performed_on": None,
+            "enabled": True,
+        })
 
     brief_text = compose_brief_letter(
         patient_ctx,
@@ -925,6 +828,7 @@ if module == "Brief":
             "brief_anamnese": anamnese,
             "brief_thuismedicatie": thuismedicatie,
             "brief_bespreking": bespreking,
+            "brief_plan": brief_plan,
             **merged_sections,
         },
     )
@@ -956,6 +860,9 @@ if module == "Brief":
                 st.info(f"Brief opgeslagen in backend (study {backend_id}).")
         else:
             st.info("Brief bijgewerkt in lokale cache (geen patiënt-ID aanwezig).")
+        # Also remember the typed brief Plan in the local brief cache
+        if brief_plan and str(brief_plan).strip():
+            _remember_brief_section("brief_plan", brief_plan, patient_ctx.patient_id, consult_date.isoformat())
     st.stop()
 
 # Compact metrics expander for quick input (writes to session_state keys)
@@ -1892,11 +1799,37 @@ if 'module' in globals() and module == "Fietstest":
     duration_default = _prefill_int(parsed_measurements.duration_at_max if parsed_measurements else None, 60)
     max_hr_default = _prefill_int(parsed_measurements.max_hr if parsed_measurements else None, 0)
 
+    # Show maximal workload and maximal heart rate first for compact metrics
+    # Use text inputs so the fields can be initially empty (easier for manual entry).
+    _sess_max_watt = st.session_state.get("fiets_max_watt", None)
+    _sess_max_hr = st.session_state.get("fiets_max_hr", None)
+    max_watt_raw = st.text_input(
+        "Maximale belasting bereikt (W)",
+        value="" if (_sess_max_watt is None or _sess_max_watt == 0) else str(_sess_max_watt),
+        key="fiets_max_watt",
+    )
+    max_hr_raw = st.text_input(
+        "Maximale hartslag (bpm)",
+        value="" if (_sess_max_hr is None or _sess_max_hr == 0) else str(_sess_max_hr),
+        key="fiets_max_hr",
+    )
+
+    def _parse_optional_int(raw_val):
+        try:
+            if raw_val is None:
+                return None
+            s = str(raw_val).strip()
+            if s == "":
+                return None
+            return int(round(float(s)))
+        except Exception:
+            return None
+
+    max_watt = _parse_optional_int(st.session_state.get("fiets_max_watt", max_watt_raw))
+    max_hr = _parse_optional_int(st.session_state.get("fiets_max_hr", max_hr_raw))
     start_watt = st.number_input("Startbelasting (W)", min_value=0, max_value=500, value=st.session_state.get("fiets_start_watt", start_watt_default), key="fiets_start_watt")
     increment_watt = st.number_input("Opdrijven (W per minuut)", min_value=5, max_value=200, value=st.session_state.get("fiets_increment_watt", increment_default), key="fiets_increment_watt")
-    max_watt = st.number_input("Maximale belasting bereikt (W)", min_value=0, max_value=2000, value=st.session_state.get("fiets_max_watt", max_watt_default), key="fiets_max_watt")
     duration_at_max = st.number_input("Duur bij maximale belasting (seconden)", min_value=0, max_value=600, value=st.session_state.get("fiets_duration_at_max", duration_default), key="fiets_duration_at_max")
-    max_hr = st.number_input("Maximale hartslag (bpm)", min_value=0, max_value=300, value=st.session_state.get("fiets_max_hr", max_hr_default), key="fiets_max_hr")
 
     bp_options = ["Normale bloeddrukevolutie", "Abnormale bloeddrukevolutie"]
     bp_idx = _prefill_select(bp_options, parsed_measurements.bp_evolutie if parsed_measurements else None)
@@ -2087,7 +2020,13 @@ if 'module' in globals() and module == "ECG":
             return fallback
 
     def _value_or_none(value: float) -> Optional[float]:
-        return value if value > 0 else None
+        try:
+            if value is None:
+                return None
+            v = float(value)
+            return v if v > 0 else None
+        except Exception:
+            return None
 
     def _format_axis(value: Optional[float]) -> str:
         if value is None:
@@ -2109,15 +2048,103 @@ if 'module' in globals() and module == "ECG":
     recorded_at_default = parsed_measurements.recorded_at if parsed_measurements else ""
     recorded_at = st.text_input("Registratiedatum", value=recorded_at_default)
 
-    vent_rate = st.number_input("Vent. frequentie (bpm)", min_value=0.0, max_value=300.0, value=_prefill_float(parsed_measurements.vent_rate if parsed_measurements else None, 0.0))
-    pr_interval = st.number_input("PR (ms)", min_value=0.0, max_value=400.0, value=_prefill_float(parsed_measurements.pr_interval_ms if parsed_measurements else None, 0.0))
-    qrs_duration = st.number_input("QRS (ms)", min_value=0.0, max_value=400.0, value=_prefill_float(parsed_measurements.qrs_duration_ms if parsed_measurements else None, 0.0))
-    qt_interval = st.number_input("QT (ms)", min_value=0.0, max_value=600.0, value=_prefill_float(parsed_measurements.qt_interval_ms if parsed_measurements else None, 0.0))
-    qtc_interval = st.number_input("QTc (ms)", min_value=0.0, max_value=650.0, value=_prefill_float(parsed_measurements.qtc_interval_ms if parsed_measurements else None, 0.0))
+    # Use text inputs so fields can be empty by default; parse into numbers later
+    vent_rate_default = ""
+    if parsed_measurements and parsed_measurements.vent_rate is not None:
+        try:
+            vent_rate_default = f"{int(round(parsed_measurements.vent_rate))}"
+        except Exception:
+            vent_rate_default = str(parsed_measurements.vent_rate)
+    vent_rate_text = st.text_input("Vent. frequentie (bpm)", value=vent_rate_default)
+
+    pr_default = ""
+    if parsed_measurements and parsed_measurements.pr_interval_ms is not None:
+        try:
+            pr_default = f"{int(round(parsed_measurements.pr_interval_ms))}"
+        except Exception:
+            pr_default = str(parsed_measurements.pr_interval_ms)
+    pr_interval_text = st.text_input("PR (ms)", value=pr_default)
+
+    # Allow P duur to be empty when not parsed; prefill with parsed value if available
+    p_duration_default = ""
+    if parsed_measurements and parsed_measurements.p_duration_ms is not None:
+        try:
+            p_duration_default = f"{int(round(parsed_measurements.p_duration_ms))}"
+        except Exception:
+            p_duration_default = str(parsed_measurements.p_duration_ms)
+    p_duration_text = st.text_input("P duur (ms)", value=p_duration_default)
+
+    qrs_default = ""
+    if parsed_measurements and parsed_measurements.qrs_duration_ms is not None:
+        try:
+            qrs_default = f"{int(round(parsed_measurements.qrs_duration_ms))}"
+        except Exception:
+            qrs_default = str(parsed_measurements.qrs_duration_ms)
+    qrs_duration_text = st.text_input("QRS (ms)", value=qrs_default)
+
+    qt_default = ""
+    if parsed_measurements and parsed_measurements.qt_interval_ms is not None:
+        try:
+            qt_default = f"{int(round(parsed_measurements.qt_interval_ms))}"
+        except Exception:
+            qt_default = str(parsed_measurements.qt_interval_ms)
+    qt_interval_text = st.text_input("QT (ms)", value=qt_default)
+
+    qtc_default = ""
+    if parsed_measurements and parsed_measurements.qtc_interval_ms is not None:
+        try:
+            qtc_default = f"{int(round(parsed_measurements.qtc_interval_ms))}"
+        except Exception:
+            qtc_default = str(parsed_measurements.qtc_interval_ms)
+    qtc_interval_text = st.text_input("QTc (ms)", value=qtc_default)
+
+    # Live QTc preview: compute corrections from current input values and show badges
+    try:
+        preview_measure = ECGMeasurements(
+            patient=active_patient_ctx,
+            vent_rate=_value_or_none(_parse_optional_float(vent_rate_text)),
+            qt_interval_ms=_value_or_none(_parse_optional_float(qt_interval_text)),
+            qtc_interval_ms=_value_or_none(_parse_optional_float(qtc_interval_text)),
+            pr_interval_ms=_value_or_none(_parse_optional_float(pr_interval_text)),
+            p_duration_ms=_parse_optional_float(p_duration_text),
+            qrs_duration_ms=_value_or_none(_parse_optional_float(qrs_duration_text)),
+        )
+        preview_metrics = compute_ecg_metrics(preview_measure)
+        if preview_metrics.qtcb_ms is not None or preview_metrics.qtcf_ms is not None:
+            sex_txt = (active_patient_ctx.sex or "").lower() if active_patient_ctx else ""
+            threshold = 460 if ("vrouw" in sex_txt or "female" in sex_txt) else 450
+            c1p, c2p = st.columns(2)
+            with c1p:
+                if preview_metrics.qtcb_ms is not None:
+                    val = int(round(preview_metrics.qtcb_ms))
+                    if val > threshold:
+                        bg = "#f8d7da"
+                    elif val >= threshold - 10:
+                        bg = "#fff3cd"
+                    else:
+                        bg = "#d4edda"
+                    st.markdown(f"<div title='Bazett: QTc = QT / sqrt(RR) (RR in s)' style='padding:8px;border-radius:6px;background:{bg};'>QTcB: <strong>{val} ms</strong></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='padding:8px;border-radius:6px;background:#f0f0f0'>QTcB: -</div>", unsafe_allow_html=True)
+            with c2p:
+                if preview_metrics.qtcf_ms is not None:
+                    val = int(round(preview_metrics.qtcf_ms))
+                    if val > threshold:
+                        bg = "#f8d7da"
+                    elif val >= threshold - 10:
+                        bg = "#fff3cd"
+                    else:
+                        bg = "#d4edda"
+                    st.markdown(f"<div title='Fridericia: QTc = QT / RR^(1/3) (RR in s)' style='padding:8px;border-radius:6px;background:{bg};'>QTcF: <strong>{val} ms</strong></div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div style='padding:8px;border-radius:6px;background:#f0f0f0'>QTcF: -</div>", unsafe_allow_html=True)
+            st.caption("Bazett: QTc = QT interval / sqrt(RR interval). Fridericia: QTc = QT interval / (RR interval)^(1/3).")
+    except Exception:
+        pass
 
     p_axis_text = st.text_input("P-as (°)", value=_format_axis(parsed_measurements.p_axis_deg if parsed_measurements else None))
     qrs_axis_text = st.text_input("QRS-as (°)", value=_format_axis(parsed_measurements.qrs_axis_deg if parsed_measurements else None))
-    t_axis_text = st.text_input("T-as (°)", value=_format_axis(parsed_measurements.t_axis_deg if parsed_measurements else None))
+    # T-as removed from UI per user request
 
     rhythm_default = parsed_measurements.rhythm_summary if parsed_measurements else ""
     rhythm_summary = st.text_area("Ritme omschrijving", value=rhythm_default, height=80)
@@ -2125,23 +2152,20 @@ if 'module' in globals() and module == "ECG":
     auto_text_default = parsed_measurements.auto_report_text if parsed_measurements else ""
     auto_report_text = st.text_area("Automatische protocolering", value=auto_text_default, height=120)
 
-    device_default = parsed_measurements.acquisition_device if parsed_measurements else ""
-    acquisition_device = st.text_input("Toestel", value=device_default)
-
     measurements = ECGMeasurements(
         patient=active_patient_ctx,
         recorded_at=recorded_at or None,
-        vent_rate=_value_or_none(vent_rate),
-        pr_interval_ms=_value_or_none(pr_interval),
-        qrs_duration_ms=_value_or_none(qrs_duration),
-        qt_interval_ms=_value_or_none(qt_interval),
-        qtc_interval_ms=_value_or_none(qtc_interval),
+        vent_rate=_value_or_none(_parse_optional_float(vent_rate_text)),
+        pr_interval_ms=_value_or_none(_parse_optional_float(pr_interval_text)),
+        p_duration_ms=_parse_optional_float(p_duration_text),
+        qrs_duration_ms=_value_or_none(_parse_optional_float(qrs_duration_text)),
+        qt_interval_ms=_value_or_none(_parse_optional_float(qt_interval_text)),
+        qtc_interval_ms=_value_or_none(_parse_optional_float(qtc_interval_text)),
         p_axis_deg=_parse_optional_float(p_axis_text),
         qrs_axis_deg=_parse_optional_float(qrs_axis_text),
-        t_axis_deg=_parse_optional_float(t_axis_text),
         rhythm_summary=rhythm_summary or None,
         auto_report_text=auto_report_text or None,
-        acquisition_device=acquisition_device or None,
+        acquisition_device=None,
     )
 
     metrics = compute_ecg_metrics(measurements)

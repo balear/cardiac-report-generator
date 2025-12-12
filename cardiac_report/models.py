@@ -150,6 +150,7 @@ class ECGMeasurements:
     p_axis_deg: Optional[float] = None
     qrs_axis_deg: Optional[float] = None
     t_axis_deg: Optional[float] = None
+    p_duration_ms: Optional[float] = None
     rhythm_summary: Optional[str] = None
     auto_report_text: Optional[str] = None
     acquisition_device: Optional[str] = None
@@ -166,7 +167,8 @@ class ECGMeasurements:
 @dataclass
 class ECGMetrics:
     """Derived ECG metrics for display."""
-
+    # QT corrected using Bazett (QTcB) and Fridericia (QTcF) formulas in ms
+    qtcb_ms: Optional[float] = None
     qtcf_ms: Optional[float] = None
     tachy_flag: bool = False
     brady_flag: bool = False
