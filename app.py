@@ -449,14 +449,14 @@ with st.sidebar:
         st.session_state["selected_module"] = pending_module
 
     # Module navigation with option_menu
-    module_options = ["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief", "Beleid"]
-    module_icons = ["heart-pulse", "bicycle", "activity", "clock-history", "cpu", "envelope", "clipboard-check"]
     module = option_menu(
         menu_title="Module",
-        options=module_options,
-        icons=module_icons,
+        options=["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Beleid", "Brief"],
+        icons=["heart-pulse", "bicycle", "activity", "clock-history", "cpu", "clipboard-check", "envelope"],
         menu_icon="grid",
-        default_index=module_options.index(st.session_state.get("selected_module", "Echo")) if st.session_state.get("selected_module", "Echo") in module_options else 0,
+        default_index=["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Beleid", "Brief"].index(
+            st.session_state.get("selected_module", "Echo")
+        ) if st.session_state.get("selected_module", "Echo") in ["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Beleid", "Brief"] else 0,
         key="selected_module",
         styles={
             # lighter container to match the rest of the sidebar
@@ -618,6 +618,207 @@ patient_ctx = PatientContext(
     weight=weight,
     length=length,
 )
+
+# -----------------------------
+# Beleid module — klinische scenario's en plangeneratie
+# -----------------------------
+if module == "Beleid":
+    st.header("Beleid — Klinisch Plan Generator")
+    st.markdown("Selecteer een klinisch scenario om een aanbevolen beleid/plan te genereren.")
+
+    # Definieer klinische scenario's met bijbehorende plannen
+    CLINICAL_SCENARIOS = {
+        "Dyspnoe work-up (ambulant)": {
+            "description": "Stappenplan voor evaluatie van dyspnoe bij ambulante patiënt",
+            "plan": [
+                "**Anamnese**: duur, triggers, orthopnoe, PND, voorgeschiedenis hartfalen/COPD",
+                "**Lichamelijk onderzoek**: RR, saturatie, auscultatie longen + hart, perifeer oedeem",
+                "**Bloedonderzoek**: Hb, NT-proBNP, nierfunctie, TSH",
+                "**ECG**: ritme, oude infarcten, linkerventrikelhypertrofie",
+                "**Thoraxfoto**: cardiomegalie, pulmonale stuwing, longpathologie",
+                "**Echocardiografie**: LV-functie, klepafwijkingen, pulmonale druk",
+                "**Longfunctie** (indien verdenking COPD/astma)",
+                "**Inspanningstest** (bij onduidelijke diagnose of follow-up hartfalen)",
+            ],
+        },
+        "Nieuwe diagnose hartfalen (HFrEF)": {
+            "description": "Initieel beleid bij nieuw gediagnosticeerd hartfalen met verminderde ejectiefractie",
+            "plan": [
+                "**Diagnostiek**: echo (LVEF <40%), ECG, bloedonderzoek (Hb, nieren, elektrolyten, NT-proBNP)",
+                "**Etiologie**: CAD uitsluiten (evt. coronair angiogram), myocarditis/DCM overwegen",
+                "**Medicatie starten** (GDMT):",
+                "  - ACE-remmer of ARNi (sacubitril/valsartan)",
+                "  - Bètablokker (bisoprolol, carvedilol, metoprololsuccinaat)",
+                "  - MRA (spironolacton, eplerenon)",
+                "  - SGLT2-remmer (dapagliflozin, empagliflozin)",
+                "**Diuretica** bij volume-overload (furosemide titreren op klachten/gewicht)",
+                "**Leefstijladviezen**: zoutbeperking (<6g/dag), vochtbeperking (1,5–2L/dag), dagelijks wegen",
+                "**Controle**: polikliniek 2–4 weken voor titratie, daarna 3-maandelijks",
+                "**ICD-evaluatie** na 3 maanden optimale medicatie indien LVEF ≤35%",
+                "**CRT-evaluatie** bij QRS ≥130ms (LBBB-morfologie)",
+            ],
+        },
+        "Nieuw atriumfibrilleren (eerste episode)": {
+            "description": "Stappenplan bij eerste gedetecteerde AF-episode",
+            "plan": [
+                "**Symptomen**: palpitaties, dyspnoe, vermoeidheid, duizeligheid, angina",
+                "**Hemodynamische stabiliteit** beoordelen: RR, saturatie, tekenen decompensatie",
+                "**ECG**: bevestig AF, zoek naar pre-excitatie (WPW), tekenen ischemie",
+                "**Bloedonderzoek**: TSH, elektrolyten, nierfunctie, bloedbeeld",
+                "**Echocardiografie**: kleplijden, LV-functie, LA-dilatatie, structureel hartlijden",
+                "**CHA₂DS₂-VASc score** bepalen → anticoagulatie indien ≥2 (man) of ≥3 (vrouw)",
+                "**HAS-BLED score** (bloedingsrisico inschatten)",
+                "**Ritme vs. frequentiecontrole**:",
+                "  - Cardioversie overwegen bij jonge patiënt, eerste episode, symptomatisch",
+                "  - Frequentiecontrole (bètablokker, digoxine, calciumantagonist) bij ouderen/asymptomatisch",
+                "**Anticoagulatie**: DOAC (apixaban, rivaroxaban, edoxaban) of VKA (indien kunstklep/MR)",
+                "**Follow-up**: polikliniek 4–6 weken, Holter overweeg bij recidief vermoeden",
+            ],
+        },
+        "Thoraxpijn op SEH (HEART-score)": {
+            "description": "Risicostratificatie en beleid bij thoraxpijn volgens HEART-score",
+            "plan": [
+                "**HEART-score bepalen**:",
+                "  - History (anamnese): 0–2 punten",
+                "  - ECG: 0–2 punten",
+                "  - Age: 0–2 punten",
+                "  - Risk factors (DM, roken, hypertensie, hyperchol., fam. anamnese): 0–2 punten",
+                "  - Troponin: 0–2 punten",
+                "**HEART 0–3 (laag risico)**:",
+                "  - Ontslag mogelijk, poliklinische follow-up, leefstijladviezen",
+                "**HEART 4–6 (matig risico)**:",
+                "  - Opname observatie, troponine herhalen na 3–6 uur",
+                "  - Fietstest of CT-coronairs overweging",
+                "**HEART 7–10 (hoog risico)**:",
+                "  - Opname CCU, invasieve diagnostiek (coronair angiogram) overwegen",
+                "  - DAPT + statine starten, cardioloog consulteren",
+            ],
+        },
+        "Hypertensie work-up (primair)": {
+            "description": "Uitgebreide evaluatie en behandeling bij nieuw ontdekte hypertensie",
+            "plan": [
+                "**Thuismeting**: gemiddelde 2×/dag gedurende 7 dagen (streef <135/85 mmHg)",
+                "**Anamnese**: duur klachten, hoofdpijn, neus bloeden, familieanamnese",
+                "**Secundaire hypertensie** screenen:",
+                "  - Nierfunctie (creatinine, eGFR), urinesediment, albumine/creat-ratio",
+                "  - TSH (hypo-/hyperthyreoidie)",
+                "  - Renine/aldosteron-ratio (bij hypoK of therapieresistent)",
+                "  - Slaapapneu-screening (Epworth, ronchopathie)",
+                "**Orgaanschade**:",
+                "  - ECG (LVH, oude infarcten)",
+                "  - Echo hart (LV-massa, diastole)",
+                "  - Fundoscopie (bij ernstige HT)",
+                "**Cardiovasculair risicoprofiel**: lipiden, glucose, roken",
+                "**Leefstijladviezen**: zoutbeperking, gewichtsverlies, beweging, alcoholmatiging",
+                "**Medicatie** (bij persisteren >140/90):",
+                "  - Eerste keus: ACE-remmer of calciumantagonist of thiazide",
+                "  - Combinatietherapie bij onvoldoende effect",
+                "**Follow-up**: 4–6 weken na start, daarna 3-maandelijks tot goed ingesteld",
+            ],
+        },
+        "Post-MI secundaire preventie": {
+            "description": "Beleid en medicatie na myocardinfarct ter preventie van recidief",
+            "plan": [
+                "**DAPT**: acetylsalicylzuur 80mg + P2Y12-remmer (ticagrelor 90mg 2×/d of prasugrel 10mg 1×/d) gedurende 12 maanden",
+                "**Statine**: atorvastatine 80mg of rosuvastatine 40mg (LDL-doel <1,4 mmol/L, liefst <1,0)",
+                "**Bètablokker**: bisoprolol, metoprolol, carvedilol (zeker bij LVEF <40%)",
+                "**ACE-remmer** (bij LVEF <40% of hypertensie/DM): ramipril, perindopril",
+                "**Eplerenon** overwegen bij LVEF <40% + tekenen HF of DM",
+                "**Leefstijl**: stoppen met roken, cardiale revalidatie, mediterraan dieet",
+                "**Bloeddruk**: streef <140/90 (indien DM/CKD: <130/80)",
+                "**Glucose**: HbA1c <7% bij diabetici, SGLT2-remmer overwegen",
+                "**Follow-up**:",
+                "  - Polikliniek 6 weken (echo-controle, medicatie-check)",
+                "  - Jaarlijkse controle met lipiden, nierfunctie, echo (bij LV-dysfunctie)",
+            ],
+        },
+        "Syncope work-up": {
+            "description": "Diagnostisch stappenplan bij syncope (bewustzijnsverlies)",
+            "plan": [
+                "**Anamnese**: prodromale symptomen, triggers (opstaan, mictie, hoesten), duur, herstel",
+                "**Heteroanamnese**: convulsies, tongbeet, incontinentie (DD epilepsie)",
+                "**Lichamelijk onderzoek**: orthostatische hypotensie (RR liggend/staand), cardiaal/neurologisch",
+                "**ECG**: geleidingsstoornissen (AV-blok), aritmieën (QTc, Brugada, pre-excitatie)",
+                "**Bloedonderzoek**: Hb, glucose, elektrolyten",
+                "**Hoog-risico kenmerken** (opname indicatie):",
+                "  - Inspanningsgebonden syncope",
+                "  - Hartfalen/structureel hartlijden",
+                "  - Familie-anamnese plotse dood <40 jaar",
+                "  - ECG-afwijkingen (QTc >460ms, Brugada, ARVD)",
+                "**Aanvullend** (afhankelijk van verdenking):",
+                "  - Echocardiografie (structureel hartlijden)",
+                "  - Holter / event recorder (aritmiedetectie)",
+                "  - Tilt-table test (vasovagale syncope)",
+                "  - EPO (elektrische stimulatie bij geleidingsstoornis)",
+                "  - Neurologisch consult (indien verdenking epilepsie/CVA)",
+                "**Behandeling**: oorzaakspecifiek (PM bij bradycardie, ICD bij maligne aritmie, vochtinname/compressiekousen bij orthostatisme)",
+            ],
+        },
+    }
+
+    # Scenario selectie
+    scenario_names = list(CLINICAL_SCENARIOS.keys())
+    selected_scenario = st.selectbox(
+        "Selecteer klinisch scenario",
+        options=scenario_names,
+        index=scenario_names.index(st.session_state.get("beleid_scenario", scenario_names[0]))
+        if st.session_state.get("beleid_scenario") in scenario_names else 0,
+        key="beleid_scenario",
+    )
+
+    scenario_data = CLINICAL_SCENARIOS[selected_scenario]
+    st.info(f"**Beschrijving**: {scenario_data['description']}")
+
+    st.subheader(f"Aanbevolen beleid: {selected_scenario}")
+
+    # Genereer plan tekst
+    plan_lines = scenario_data["plan"]
+    plan_text = "\n".join(plan_lines)
+
+    # Toon plan in expandable sectie
+    with st.expander("📋 Volledig klinisch plan", expanded=True):
+        st.markdown(plan_text)
+
+    # Optie om plan aan te passen
+    st.subheader("Plan aanpassen (optioneel)")
+    custom_plan = st.text_area(
+        "Bewerk of personaliseer het plan",
+        value=st.session_state.get("beleid_custom_plan", plan_text),
+        height=300,
+        key="beleid_custom_plan",
+    )
+
+    # Download / kopieer functionaliteit
+    col1, col2 = st.columns(2)
+    with col1:
+        st.download_button(
+            "📥 Download als TXT",
+            custom_plan,
+            file_name=f"beleid_{selected_scenario.replace(' ', '_')}.txt",
+            mime="text/plain",
+        )
+    with col2:
+        # Copy to clipboard via JS
+        escaped_plan = json.dumps(custom_plan)
+        copy_html = f"""
+        <button onclick='navigator.clipboard.writeText({escaped_plan}); alert("Plan gekopieerd naar klembord!")'
+                style='padding: 8px 16px; background-color: #9ed9fb; color: #042f4a; border: none; border-radius: 6px; cursor: pointer;'>
+            📋 Kopieer naar klembord
+        </button>
+        """
+        components.html(copy_html, height=50)
+
+    # Optie om in brief op te nemen
+    if st.button("💾 Bewaar in brief-sectie", use_container_width=True):
+        _remember_brief_section(
+            "beleid_plan",
+            custom_plan,
+            patient_ctx.patient_id,
+            datetime.date.today().isoformat(),
+        )
+        st.success("✓ Beleid opgeslagen in brief-cache")
+
+    st.stop()
 
 # -----------------------------
 # Brief module (tekst-samenvatting)
@@ -2296,76 +2497,6 @@ if 'module' in globals() and module == "CIED follow-up":
         st.subheader("Gegenereerd CIED Verslag")
         show_report_actions(final)
         st.stop()
-
-
-# -----------------------------
-# Beleid module (klinische plannen)
-# -----------------------------
-if module == "Beleid":
-    st.header("Beleid — klinische plannen")
-    st.markdown("Kies een diagnose of klinisch scenario en genereer een gestandaardiseerd plan.")
-
-    scenario_options = [
-        "Dyspnee Workup dr. Ballet",
-        "Algemeen cardiologisch beleid (voorbeeld)",
-    ]
-    scenario = st.selectbox("Scenario", scenario_options, index=scenario_options.index(st.session_state.get("beleid_scenario", "Dyspnee Workup dr. Ballet")), key="beleid_scenario")
-
-    # Default test list for Dyspnee Workup
-    dyspnee_tests = [
-        "Volledige celtelling",
-        "Nierfunctie",
-        "Elektrolyten",
-        "CK",
-        "TSH/T4",
-        "IJzerstatus",
-        "HbA1C",
-        "Glucose",
-        "NT-proBNP",
-        "CT coronairen / coronarografie (bij vermoeden coronair lijden)",
-        "Holter monitoring (bij vermoeden aritmie)",
-        "RX thorax F/P of Low dose CT thorax",
-        "Volledige longfunctie (+ FeNO bij vermoeden astma)",
-        "Electrocardiogram (ECG)",
-        "Transthoracale echocardiografie (TTE)",
-        "Fietsproef",
-        "Ligfiets echocardiografie (indicaties volgens richtlijn)",
-        "Cardiopulmonale exercise testing (CPET) indien negatieve eerdere tests",
-        "Rechter hartcatheterisatie (RHC) bij vermoeden pulmonale hypertensie",
-        "CT sinussen (bovenste luchtweg)",
-        "Spierbiopsie (vermoeden myopathie)",
-        "V/Q scan (CTEPH vermoeden)",
-        "Gastroscopie (vermoeden GERD)",
-        "Cardiale MRI (vermoeden cardiomyopathie)",
-        "Botscan (vermoeden amyloïdose)",
-    ]
-
-    if scenario == "Dyspnee Workup dr. Ballet":
-        selected_tests = st.multiselect("Aanbevolen onderzoeken (selecteer/haal weg)", dyspnee_tests, default=st.session_state.get("beleid_dyspnee_selected", dyspnee_tests), key="beleid_dyspnee_selected")
-    else:
-        selected_tests = st.multiselect("Aanbevolen onderzoeken (selecteer/haal weg)", dyspnee_tests, default=st.session_state.get("beleid_generic_selected", []), key="beleid_generic_selected")
-
-    extra_notes = st.text_area("Extra opmerkingen / klinisch commentaar", value=st.session_state.get("beleid_extra_notes", ""), height=100, key="beleid_extra_notes")
-
-    # Build plan text
-    plan_lines = [f"Beleid: {scenario}", "", "Aanbevolen onderzoeken en acties:"]
-    for t in selected_tests:
-        plan_lines.append(f"- {t}")
-    if extra_notes and extra_notes.strip():
-        plan_lines.append("")
-        plan_lines.append("Opmerkingen:")
-        plan_lines.append(extra_notes.strip())
-
-    plan_text = "\n".join(plan_lines)
-
-    st.subheader("Gegenereerd plan")
-    show_report_actions(plan_text, file_name="beleid_plan.txt")
-
-    if st.button("Opslaan beleid lokaal"):
-        # remember as brief section under a 'beleid' key so it can be reused
-        _remember_brief_section("beleid_plan", plan_text, patient_ctx.patient_id if patient_ctx else None, datetime.date.today().isoformat())
-        st.success("Beleid lokaal opgeslagen.")
-    st.stop()
 
     # End CIED module — prevent rendering of subsequent modules when CIED selected
     st.stop()
