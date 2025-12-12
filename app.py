@@ -6,6 +6,7 @@ import os
 from typing import Any, Dict, List, Optional, Tuple
 import streamlit.components.v1 as components
 import requests
+from streamlit_option_menu import option_menu
 
 from cardiac_report.calculations import (
     bsa_mosteller,
@@ -440,8 +441,57 @@ with st.sidebar:
     )
     bsa = bsa_mosteller(length, weight)
     st.markdown(f"**BSA (Mosteller):** {bsa:.2f} m²")
-    # Choose module: Echo, Fietstest, ECG, Holter, CIED follow-up or Brief
-    module = st.selectbox("Module", ["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief"], index=0)
+    
+    st.markdown("---")
+    # Apply pending module selection (set by reset) before instantiating the widget
+    pending_module = st.session_state.pop("_pending_selected_module", None)
+    if pending_module is not None:
+        st.session_state["selected_module"] = pending_module
+
+    # Module navigation with option_menu
+    module = option_menu(
+        menu_title="Module",
+        options=["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief"],
+        icons=["heart-pulse", "bicycle", "activity", "clock-history", "cpu", "envelope"],
+        menu_icon="grid",
+        default_index=["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief"].index(
+            st.session_state.get("selected_module", "Echo")
+        ) if st.session_state.get("selected_module", "Echo") in ["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief"] else 0,
+        key="selected_module",
+        styles={
+            # lighter container to match the rest of the sidebar
+            "container": {"padding": "6px", "background-color": "#f7f8fa", "border-radius": "6px"},
+            # subdued icon color
+            "icon": {"color": "#6b6f76", "font-size": "18px"},
+            # normal link styling to blend with light container
+            "nav-link": {"font-size": "14px", "text-align": "left", "margin": "4px", "color": "#222", "background-color": "transparent", "--hover-color": "#eef0f3"},
+            # Pastel Sky selected: soft & airy
+            "nav-link-selected": {"background-color": "#9ed9fb", "color": "#042f4a", "border-radius": "6px"},
+            # icon highlight when selected + subtle glow
+            "icon-selected": {
+                "color": "#0b66f0",
+                "text-shadow": "0 4px 12px rgba(11,102,240,0.18)",
+                "filter": "drop-shadow(0 6px 10px rgba(11,102,240,0.12))",
+            },
+        }
+    )
+    
+    st.markdown("---")
+    # Reset knop om alle velden te wissen
+    if st.button("🔄 Reset alle velden", type="secondary", use_container_width=True):
+        # Bewaar alleen de module selectie
+        current_module = st.session_state.get("selected_module", "Echo")
+        # Wis alle session state keys behalve system keys
+        keys_to_keep = {"selected_module", "__brief_sections__"}
+        keys_to_delete = [k for k in st.session_state.keys() if k not in keys_to_keep and not k.startswith("_")]
+        for k in keys_to_delete:
+            del st.session_state[k]
+        # Herstel defaults
+        for key, default in PATIENT_SIDEBAR_DEFAULTS.items():
+            st.session_state[key] = default
+        # De widget `selected_module` bestaat al — plan de herselectie voor de volgende run
+        st.session_state["_pending_selected_module"] = current_module
+        safe_rerun()
 
 # Trend visualization for historical patient data
 if patient_identifier and patient_identifier.strip() and BACKEND_ENABLED:
@@ -576,23 +626,23 @@ if module == "Brief":
     st.header("Brief — consulttemplate")
     sections = _load_brief_sections(patient_ctx)
 
-    consult_date = st.date_input("Consultdatum", value=datetime.date.today())
+    consult_date = st.date_input("Consultdatum", value=st.session_state.get("brief_consult_date", datetime.date.today()), key="brief_consult_date")
 
-    voorgeschiedenis = st.text_area("Voorgeschiedenis", value="", height=120)
-    anamnese = st.text_area("Anamnese", value="", height=120)
-    thuismedicatie = st.text_area("Thuismedicatie", value="", height=120)
+    voorgeschiedenis = st.text_area("Voorgeschiedenis", value=st.session_state.get("brief_voorgeschiedenis", ""), height=120, key="brief_voorgeschiedenis")
+    anamnese = st.text_area("Anamnese", value=st.session_state.get("brief_anamnese", ""), height=120, key="brief_anamnese")
+    thuismedicatie = st.text_area("Thuismedicatie", value=st.session_state.get("brief_thuismedicatie", ""), height=120, key="brief_thuismedicatie")
 
     st.subheader("Klinisch onderzoek")
     c1, c2, c3 = st.columns(3)
     with c1:
-        pols_val = st.number_input("Pols (bpm)", min_value=0, max_value=250, value=0)
+        pols_val = st.number_input("Pols (bpm)", min_value=0, max_value=250, value=st.session_state.get("brief_pols", 0), key="brief_pols")
     with c2:
-        bp_sys = st.number_input("Systolische BD (mmHg)", min_value=0, max_value=300, value=0)
+        bp_sys = st.number_input("Systolische BD (mmHg)", min_value=0, max_value=300, value=st.session_state.get("brief_bp_sys", 0), key="brief_bp_sys")
     with c3:
-        bp_dia = st.number_input("Diastolische BD (mmHg)", min_value=0, max_value=200, value=0)
+        bp_dia = st.number_input("Diastolische BD (mmHg)", min_value=0, max_value=200, value=st.session_state.get("brief_bp_dia", 0), key="brief_bp_dia")
 
-    ausc_normaal = st.checkbox("Normale hartauscultatie", value=True)
-    auscultatie = "Normale hartauscultatie." if ausc_normaal else st.text_input("Auscultatie (vrije tekst)", value="")
+    ausc_normaal = st.checkbox("Normale hartauscultatie", value=st.session_state.get("brief_ausc_normaal", True), key="brief_ausc_normaal")
+    auscultatie = "Normale hartauscultatie." if ausc_normaal else st.text_input("Auscultatie (vrije tekst)", value=st.session_state.get("brief_auscultatie", ""), key="brief_auscultatie")
 
     bmi_val = None
     try:
@@ -634,7 +684,7 @@ if module == "Brief":
 
     full_keys = [key for _, key in full_investigation_defs]
 
-    bespreking = st.text_area("Bespreking", value="", height=140)
+    bespreking = st.text_area("Bespreking", value=st.session_state.get("brief_bespreking", ""), height=140, key="brief_bespreking")
 
     clinical_exam = {
         "pols": pols_val or None,
@@ -1641,19 +1691,19 @@ if 'module' in globals() and module == "Fietstest":
     duration_default = _prefill_int(parsed_measurements.duration_at_max if parsed_measurements else None, 60)
     max_hr_default = _prefill_int(parsed_measurements.max_hr if parsed_measurements else None, 0)
 
-    start_watt = st.number_input("Startbelasting (W)", min_value=0, max_value=500, value=start_watt_default)
-    increment_watt = st.number_input("Opdrijven (W per minuut)", min_value=5, max_value=200, value=increment_default)
-    max_watt = st.number_input("Maximale belasting bereikt (W)", min_value=0, max_value=2000, value=max_watt_default)
-    duration_at_max = st.number_input("Duur bij maximale belasting (seconden)", min_value=0, max_value=600, value=duration_default)
-    max_hr = st.number_input("Maximale hartslag (bpm)", min_value=0, max_value=300, value=max_hr_default)
+    start_watt = st.number_input("Startbelasting (W)", min_value=0, max_value=500, value=st.session_state.get("fiets_start_watt", start_watt_default), key="fiets_start_watt")
+    increment_watt = st.number_input("Opdrijven (W per minuut)", min_value=5, max_value=200, value=st.session_state.get("fiets_increment_watt", increment_default), key="fiets_increment_watt")
+    max_watt = st.number_input("Maximale belasting bereikt (W)", min_value=0, max_value=2000, value=st.session_state.get("fiets_max_watt", max_watt_default), key="fiets_max_watt")
+    duration_at_max = st.number_input("Duur bij maximale belasting (seconden)", min_value=0, max_value=600, value=st.session_state.get("fiets_duration_at_max", duration_default), key="fiets_duration_at_max")
+    max_hr = st.number_input("Maximale hartslag (bpm)", min_value=0, max_value=300, value=st.session_state.get("fiets_max_hr", max_hr_default), key="fiets_max_hr")
 
     bp_options = ["Normale bloeddrukevolutie", "Abnormale bloeddrukevolutie"]
     bp_idx = _prefill_select(bp_options, parsed_measurements.bp_evolutie if parsed_measurements else None)
-    bp_evolutie = st.selectbox("Bloeddrukevolutie", bp_options, index=bp_idx)
+    bp_evolutie = st.selectbox("Bloeddrukevolutie", bp_options, index=st.session_state.get("fiets_bp_idx", bp_idx) if "fiets_bp_evolutie" not in st.session_state else bp_options.index(st.session_state.get("fiets_bp_evolutie", bp_options[bp_idx])) if st.session_state.get("fiets_bp_evolutie") in bp_options else bp_idx, key="fiets_bp_evolutie")
 
     ritme_options = ["Geen ritmestoornissen", "Ritmestoornissen tijdens test"]
     ritme_idx = _prefill_select(ritme_options, parsed_measurements.ritme if parsed_measurements else None)
-    ritme = st.selectbox("Ritme/ritmestoornissen", ritme_options, index=ritme_idx)
+    ritme = st.selectbox("Ritme/ritmestoornissen", ritme_options, index=ritme_options.index(st.session_state.get("fiets_ritme", ritme_options[ritme_idx])) if st.session_state.get("fiets_ritme") in ritme_options else ritme_idx, key="fiets_ritme")
 
     effort_options = ["Significant doorgevoerd", "Submaximale inspanning"]
     parsed_effort_idx = _prefill_select(effort_options, parsed_measurements.effort_type if parsed_measurements else None)
@@ -1669,11 +1719,11 @@ if 'module' in globals() and module == "Fietstest":
     except Exception:
         default_effort_idx = parsed_effort_idx or 0
 
-    effort_type = st.selectbox("Type inspanning", effort_options, index=default_effort_idx)
+    effort_type = st.selectbox("Type inspanning", effort_options, index=effort_options.index(st.session_state.get("fiets_effort_type", effort_options[default_effort_idx])) if st.session_state.get("fiets_effort_type") in effort_options else default_effort_idx, key="fiets_effort_type")
 
     stop_options = ["vermoeidheid", "maximale fietsproef", "dyspnee", "angor", "ECG afwijkingen"]
     stop_idx = _prefill_select(stop_options, parsed_measurements.stop_criterium if parsed_measurements else None)
-    stop_criterium = st.selectbox("Criterium voor staken", stop_options, index=stop_idx)
+    stop_criterium = st.selectbox("Criterium voor staken", stop_options, index=stop_options.index(st.session_state.get("fiets_stop_criterium", stop_options[stop_idx])) if st.session_state.get("fiets_stop_criterium") in stop_options else stop_idx, key="fiets_stop_criterium")
 
     ecg_options = [
         "geen significante veranderingen",
@@ -1683,11 +1733,11 @@ if 'module' in globals() and module == "Fietstest":
         "down-sloping ST-segment depressie met J-80 >1mm"
     ]
     ecg_idx = _prefill_select(ecg_options, parsed_measurements.ecg_changes if parsed_measurements else None)
-    ecg_changes = st.selectbox("ECG tijdens inspanning/recuperatie", ecg_options, index=ecg_idx)
+    ecg_changes = st.selectbox("ECG tijdens inspanning/recuperatie", ecg_options, index=ecg_options.index(st.session_state.get("fiets_ecg_changes", ecg_options[ecg_idx])) if st.session_state.get("fiets_ecg_changes") in ecg_options else ecg_idx, key="fiets_ecg_changes")
 
     conclusion_options = ["Normale fietsproef", "Abnormale fietsproef"]
     conclusion_idx = _prefill_select(conclusion_options, parsed_measurements.conclusion if parsed_measurements else None)
-    conclusion = st.selectbox("Conclusie", conclusion_options, index=conclusion_idx)
+    conclusion = st.selectbox("Conclusie", conclusion_options, index=conclusion_options.index(st.session_state.get("fiets_conclusion", conclusion_options[conclusion_idx])) if st.session_state.get("fiets_conclusion") in conclusion_options else conclusion_idx, key="fiets_conclusion")
 
     measurements = FietstestMeasurements(
         patient=active_patient_ctx,
@@ -1935,11 +1985,14 @@ if 'module' in globals() and module == "CIED follow-up":
     st.header("CIED Follow-up")
     st.markdown("Vul apparaatgegevens en meetwaarden in voor het follow-up verslag.")
 
-    device_type = st.selectbox("Type apparaat", ["conduction system pacemaker", "pacemaker", "ICD", "CRT-P", "CRT-D", "Andere"], index=0)
-    device_brand = st.selectbox("Merk", ["Biotronik", "Medtronic", "Boston-Scientific", "Abbott", "Sorin"], index=0)
+    cied_device_options = ["conduction system pacemaker", "pacemaker", "ICD", "CRT-P", "CRT-D", "Andere"]
+    device_type = st.selectbox("Type apparaat", cied_device_options, index=cied_device_options.index(st.session_state.get("cied_device_type", "conduction system pacemaker")) if st.session_state.get("cied_device_type") in cied_device_options else 0, key="cied_device_type")
+    cied_brand_options = ["Biotronik", "Medtronic", "Boston-Scientific", "Abbott", "Sorin"]
+    device_brand = st.selectbox("Merk", cied_brand_options, index=cied_brand_options.index(st.session_state.get("cied_device_brand", "Biotronik")) if st.session_state.get("cied_device_brand") in cied_brand_options else 0, key="cied_device_brand")
     # Programming mode and rate settings
-    programming_mode = st.selectbox("Programmering modus", ["DDD", "DDDR", "DDD-CLS", "VVI", "VVIR", "AAI", "AAIR", "Andere"], index=0)
-    lower_rate = st.number_input("Lower rate (bpm)", min_value=30, max_value=120, value=60)
+    cied_mode_options = ["DDD", "DDDR", "DDD-CLS", "VVI", "VVIR", "AAI", "AAIR", "Andere"]
+    programming_mode = st.selectbox("Programmering modus", cied_mode_options, index=cied_mode_options.index(st.session_state.get("cied_programming_mode", "DDD")) if st.session_state.get("cied_programming_mode") in cied_mode_options else 0, key="cied_programming_mode")
+    lower_rate = st.number_input("Lower rate (bpm)", min_value=30, max_value=120, value=st.session_state.get("cied_lower_rate", 60), key="cied_lower_rate")
     # compute and show myPACE suggestion immediately under lower_rate
     try:
         mypace_suggest = None
@@ -1965,7 +2018,7 @@ if 'module' in globals() and module == "CIED follow-up":
     if mypace_suggest is not None:
         st.caption(f"myPACE (if HFpEF) suggested lower rate: {mypace_suggest} bpm")
 
-    upper_tracking = st.number_input("Upper tracking rate (bpm)", min_value=80, max_value=210, value=130)
+    upper_tracking = st.number_input("Upper tracking rate (bpm)", min_value=80, max_value=210, value=st.session_state.get("cied_upper_tracking", 130), key="cied_upper_tracking")
     # predicted max HR and upper suggestion shown under upper_tracking
     try:
         upper_suggest = None
@@ -2053,15 +2106,16 @@ if 'module' in globals() and module == "CIED follow-up":
         av_reduction = None
         suggested_sensed_av = None
         suggested_paced_av = None
-    indication_sel = st.selectbox("Indicatie / reden voor implantatie", [
+    cied_indication_options = [
         "sinusknoopdysfunctie",
         "paroxysmaal AV-blok",
         "permanent AV-blok",
         "permanente voorkamerfibrillatie met traag ventriculair antwoord",
         "Andere",
-    ], index=0)
+    ]
+    indication_sel = st.selectbox("Indicatie / reden voor implantatie", cied_indication_options, index=cied_indication_options.index(st.session_state.get("cied_indication_sel", "sinusknoopdysfunctie")) if st.session_state.get("cied_indication_sel") in cied_indication_options else 0, key="cied_indication_sel")
     if indication_sel == "Andere":
-        indication_text = st.text_input("Andere indicatie, specificeer", value="")
+        indication_text = st.text_input("Andere indicatie, specificeer", value=st.session_state.get("cied_indication_text", ""), key="cied_indication_text")
     else:
         indication_text = indication_sel
 
@@ -2069,38 +2123,39 @@ if 'module' in globals() and module == "CIED follow-up":
     st.markdown("**Leads aanwezig**")
     leads_col1, leads_col2, leads_col3 = st.columns(3)
     with leads_col1:
-        lead_ra = st.checkbox("RA", value=True)
-        lead_rv = st.checkbox("RV", value=True)
+        lead_ra = st.checkbox("RA", value=st.session_state.get("cied_lead_ra", True), key="cied_lead_ra")
+        lead_rv = st.checkbox("RV", value=st.session_state.get("cied_lead_rv", True), key="cied_lead_rv")
     with leads_col2:
-        lead_lv = st.checkbox("LV (coronary sinus)", value=False)
+        lead_lv = st.checkbox("LV (coronary sinus)", value=st.session_state.get("cied_lead_lv", False), key="cied_lead_lv")
     with leads_col3:
-        other_leads = st.text_input("Andere leads (specificeer)", value="")
+        other_leads = st.text_input("Andere leads (specificeer)", value=st.session_state.get("cied_other_leads", ""), key="cied_other_leads")
 
     st.markdown("**Algemene metingen**")
     col_a, col_b = st.columns(2)
     with col_a:
-        sensing_ok = st.checkbox("Sensing OK (globaal)", value=True)
-        pacing_ok = st.checkbox("Pacing OK (globaal)", value=True)
+        sensing_ok = st.checkbox("Sensing OK (globaal)", value=st.session_state.get("cied_sensing_ok", True), key="cied_sensing_ok")
+        pacing_ok = st.checkbox("Pacing OK (globaal)", value=st.session_state.get("cied_pacing_ok", True), key="cied_pacing_ok")
     with col_b:
-        impedance_ok = st.checkbox("Impedanties OK (globaal)", value=True)
-        egm_events = st.selectbox("EGM events", ["Geen events", "Atriale events", "Ventriculaire events", "Andere"], index=0)
+        impedance_ok = st.checkbox("Impedanties OK (globaal)", value=st.session_state.get("cied_impedance_ok", True), key="cied_impedance_ok")
+        cied_egm_options = ["Geen events", "Atriale events", "Ventriculaire events", "Andere"]
+        egm_events = st.selectbox("EGM events", cied_egm_options, index=cied_egm_options.index(st.session_state.get("cied_egm_events", "Geen events")) if st.session_state.get("cied_egm_events") in cied_egm_options else 0, key="cied_egm_events")
 
     # Pacing percentages (optional — laat leeg als onbekend)
     colp1, colp2, colp3 = st.columns(3)
     with colp1:
-        atrial_pacing_pct = st.text_input("Atrium pacing (%)", value="", placeholder="% leeg laat veld weg")
+        atrial_pacing_pct = st.text_input("Atrium pacing (%)", value=st.session_state.get("cied_atrial_pacing_pct", ""), placeholder="% leeg laat veld weg", key="cied_atrial_pacing_pct")
     with colp2:
-        ventricular_pacing_pct = st.text_input("Ventrikel pacing (%)", value="", placeholder="% leeg laat veld weg")
+        ventricular_pacing_pct = st.text_input("Ventrikel pacing (%)", value=st.session_state.get("cied_ventricular_pacing_pct", ""), placeholder="% leeg laat veld weg", key="cied_ventricular_pacing_pct")
     with colp3:
         if 'lead_lv' in locals() and lead_lv:
-            lv_pacing_pct = st.text_input("LV pacing (%)", value="", placeholder="% leeg laat veld weg")
+            lv_pacing_pct = st.text_input("LV pacing (%)", value=st.session_state.get("cied_lv_pacing_pct", ""), placeholder="% leeg laat veld weg", key="cied_lv_pacing_pct")
         else:
             lv_pacing_pct = ""
 
-    settings_changed = st.checkbox("Instellingen gewijzigd (ten opzichte van vorige follow-up)", value=False)
-    patient_dependent = st.checkbox("Patiënt afhankelijk", value=False)
+    settings_changed = st.checkbox("Instellingen gewijzigd (ten opzichte van vorige follow-up)", value=st.session_state.get("cied_settings_changed", False), key="cied_settings_changed")
+    patient_dependent = st.checkbox("Patiënt afhankelijk", value=st.session_state.get("cied_patient_dependent", False), key="cied_patient_dependent")
 
-    battery_status = st.text_input("Batterijstatus (bv. 2.9V, 2+ jaar resterend)", value="")
+    battery_status = st.text_input("Batterijstatus (bv. 2.9V, 2+ jaar resterend)", value=st.session_state.get("cied_battery_status", ""), key="cied_battery_status")
 
     # Per-lead detailed inputs
     st.markdown("**Leads — detailwaarden**")
@@ -2109,16 +2164,17 @@ if 'module' in globals() and module == "CIED follow-up":
         st.markdown("**Atrium (RA) — waarden**")
         col1, col2, col3 = st.columns(3)
         with col1:
-            atrial_sensing = st.text_input("Atrium sensing (mV)", value="")
-            atrial_impedance = st.text_input("Atrium impedantie (Ω)", value="")
+            atrial_sensing = st.text_input("Atrium sensing (mV)", value=st.session_state.get("cied_atrial_sensing", ""), key="cied_atrial_sensing")
+            atrial_impedance = st.text_input("Atrium impedantie (Ω)", value=st.session_state.get("cied_atrial_impedance", ""), key="cied_atrial_impedance")
         with col2:
-            atrial_threshold_v = st.text_input("Atrium drempel (V)", value="")
-            atrial_threshold_ms = st.text_input("Atrium drempel (ms)", value="")
+            atrial_threshold_v = st.text_input("Atrium drempel (V)", value=st.session_state.get("cied_atrial_threshold_v", ""), key="cied_atrial_threshold_v")
+            atrial_threshold_ms = st.text_input("Atrium drempel (ms)", value=st.session_state.get("cied_atrial_threshold_ms", ""), key="cied_atrial_threshold_ms")
         with col3:
-            atrial_polarity = st.selectbox("Atrium polariteit", ["Unipolair", "Bipolair"], index=1)
-            atrial_stable = st.checkbox("Atrium stabiel", value=True)
+            cied_polarity_options = ["Unipolair", "Bipolair"]
+            atrial_polarity = st.selectbox("Atrium polariteit", cied_polarity_options, index=cied_polarity_options.index(st.session_state.get("cied_atrial_polarity", "Bipolair")) if st.session_state.get("cied_atrial_polarity") in cied_polarity_options else 1, key="cied_atrial_polarity")
+            atrial_stable = st.checkbox("Atrium stabiel", value=st.session_state.get("cied_atrial_stable", True), key="cied_atrial_stable")
         # optional location for atrial lead
-        atrial_location = st.text_input("Atrium locatie (bv. RAA)", value="")
+        atrial_location = st.text_input("Atrium locatie (bv. RAA)", value=st.session_state.get("cied_atrial_location", ""), key="cied_atrial_location")
     else:
         atrial_sensing = atrial_impedance = atrial_threshold_v = atrial_threshold_ms = atrial_polarity = None
         atrial_stable = None
@@ -2129,15 +2185,15 @@ if 'module' in globals() and module == "CIED follow-up":
         st.markdown("**Ventrikel (RV) — waarden**")
         col1, col2, col3 = st.columns(3)
         with col1:
-            vent_sensing = st.text_input("Ventrikel sensing (mV)", value="")
-            vent_impedance = st.text_input("Ventrikel impedantie (Ω)", value="")
+            vent_sensing = st.text_input("Ventrikel sensing (mV)", value=st.session_state.get("cied_vent_sensing", ""), key="cied_vent_sensing")
+            vent_impedance = st.text_input("Ventrikel impedantie (Ω)", value=st.session_state.get("cied_vent_impedance", ""), key="cied_vent_impedance")
         with col2:
-            vent_threshold_v = st.text_input("Ventrikel drempel (V)", value="")
-            vent_threshold_ms = st.text_input("Ventrikel drempel (ms)", value="")
+            vent_threshold_v = st.text_input("Ventrikel drempel (V)", value=st.session_state.get("cied_vent_threshold_v", ""), key="cied_vent_threshold_v")
+            vent_threshold_ms = st.text_input("Ventrikel drempel (ms)", value=st.session_state.get("cied_vent_threshold_ms", ""), key="cied_vent_threshold_ms")
         with col3:
-            vent_polarity = st.selectbox("Ventrikel polariteit", ["Unipolair", "Bipolair"], index=1)
-            vent_stable = st.checkbox("Ventrikel stabiel", value=True)
-        vent_location = st.text_input("Ventrikel locatie (bv. LBBB)", value="")
+            vent_polarity = st.selectbox("Ventrikel polariteit", cied_polarity_options, index=cied_polarity_options.index(st.session_state.get("cied_vent_polarity", "Bipolair")) if st.session_state.get("cied_vent_polarity") in cied_polarity_options else 1, key="cied_vent_polarity")
+            vent_stable = st.checkbox("Ventrikel stabiel", value=st.session_state.get("cied_vent_stable", True), key="cied_vent_stable")
+        vent_location = st.text_input("Ventrikel locatie (bv. LBBB)", value=st.session_state.get("cied_vent_location", ""), key="cied_vent_location")
     else:
         vent_sensing = vent_impedance = vent_threshold_v = vent_threshold_ms = vent_polarity = None
         vent_stable = None
@@ -2148,15 +2204,15 @@ if 'module' in globals() and module == "CIED follow-up":
         st.markdown("**LV (CS) — waarden**")
         col1, col2, col3 = st.columns(3)
         with col1:
-            lv_sensing = st.text_input("LV sensing (mV)", value="")
-            lv_impedance = st.text_input("LV impedantie (Ω)", value="")
+            lv_sensing = st.text_input("LV sensing (mV)", value=st.session_state.get("cied_lv_sensing", ""), key="cied_lv_sensing")
+            lv_impedance = st.text_input("LV impedantie (Ω)", value=st.session_state.get("cied_lv_impedance", ""), key="cied_lv_impedance")
         with col2:
-            lv_threshold_v = st.text_input("LV drempel (V)", value="")
-            lv_threshold_ms = st.text_input("LV drempel (ms)", value="")
+            lv_threshold_v = st.text_input("LV drempel (V)", value=st.session_state.get("cied_lv_threshold_v", ""), key="cied_lv_threshold_v")
+            lv_threshold_ms = st.text_input("LV drempel (ms)", value=st.session_state.get("cied_lv_threshold_ms", ""), key="cied_lv_threshold_ms")
         with col3:
-            lv_polarity = st.selectbox("LV polariteit", ["Unipolair", "Bipolair"], index=1)
-            lv_stable = st.checkbox("LV stabiel", value=True)
-        lv_location = st.text_input("LV locatie (bv. CS lat)", value="")
+            lv_polarity = st.selectbox("LV polariteit", cied_polarity_options, index=cied_polarity_options.index(st.session_state.get("cied_lv_polarity", "Bipolair")) if st.session_state.get("cied_lv_polarity") in cied_polarity_options else 1, key="cied_lv_polarity")
+            lv_stable = st.checkbox("LV stabiel", value=st.session_state.get("cied_lv_stable", True), key="cied_lv_stable")
+        lv_location = st.text_input("LV locatie (bv. CS lat)", value=st.session_state.get("cied_lv_location", ""), key="cied_lv_location")
     else:
         lv_sensing = lv_impedance = lv_threshold_v = lv_threshold_ms = lv_polarity = None
         lv_stable = None
@@ -2254,42 +2310,42 @@ if 'module' in globals() and module == "Holter":
     st.subheader("Registratie-informatie")
     c1, c2 = st.columns(2)
     with c1:
-        recording_date = st.date_input("Registratiedatum", value=datetime.date.today())
+        recording_date = st.date_input("Registratiedatum", value=st.session_state.get("holter_recording_date", datetime.date.today()), key="holter_recording_date")
     with c2:
-        recording_duration = st.number_input("Registratieduur (uur)", min_value=1, max_value=168, value=24)
+        recording_duration = st.number_input("Registratieduur (uur)", min_value=1, max_value=168, value=st.session_state.get("holter_recording_duration", 24), key="holter_recording_duration")
 
     st.subheader("Hartfrequentie analyse")
     c1, c2, c3 = st.columns(3)
     with c1:
-        avg_hr = st.number_input("Gemiddelde HR (bpm)", min_value=0, max_value=300, value=75)
+        avg_hr = st.number_input("Gemiddelde HR (bpm)", min_value=0, max_value=300, value=st.session_state.get("holter_avg_hr", 75), key="holter_avg_hr")
     with c2:
-        min_hr = st.number_input("Minimale HR (bpm)", min_value=0, max_value=300, value=45)
+        min_hr = st.number_input("Minimale HR (bpm)", min_value=0, max_value=300, value=st.session_state.get("holter_min_hr", 45), key="holter_min_hr")
     with c3:
-        max_hr = st.number_input("Maximale HR (bpm)", min_value=0, max_value=300, value=120)
+        max_hr_holter = st.number_input("Maximale HR (bpm)", min_value=0, max_value=300, value=st.session_state.get("holter_max_hr", 120), key="holter_max_hr")
 
     st.subheader("Ritme-analyse")
     c1, c2 = st.columns(2)
     with c1:
-        afib_percentage = st.number_input("Atriumfibrilleren (%)", min_value=0.0, max_value=100.0, value=0.0, step=0.1)
+        afib_percentage = st.number_input("Atriumfibrilleren (%)", min_value=0.0, max_value=100.0, value=st.session_state.get("holter_afib_percentage", 0.0), step=0.1, key="holter_afib_percentage")
     with c2:
         av_block_options = ["Geen", "1e graads AV-blok", "2e graads AV-blok type I (Wenckebach)", "2e graads AV-blok type II", "3e graads AV-blok (totaal)"]
-        av_block_type = st.selectbox("AV-blok", av_block_options, index=0)
+        av_block_type = st.selectbox("AV-blok", av_block_options, index=av_block_options.index(st.session_state.get("holter_av_block_type", "Geen")) if st.session_state.get("holter_av_block_type") in av_block_options else 0, key="holter_av_block_type")
 
     st.subheader("Pauzes")
     c1, c2 = st.columns(2)
     with c1:
-        pauses_count = st.number_input("Aantal pauzes", min_value=0, max_value=10000, value=0)
+        pauses_count = st.number_input("Aantal pauzes", min_value=0, max_value=10000, value=st.session_state.get("holter_pauses_count", 0), key="holter_pauses_count")
     with c2:
-        longest_pause_ms = st.number_input("Langste pauze (ms)", min_value=0, max_value=30000, value=0)
+        longest_pause_ms = st.number_input("Langste pauze (ms)", min_value=0, max_value=30000, value=st.session_state.get("holter_longest_pause_ms", 0), key="holter_longest_pause_ms")
 
     st.subheader("Ectopie")
     c1, c2 = st.columns(2)
     with c1:
-        ves_count = st.number_input("VES (ventriculaire extrasystolen)", min_value=0, max_value=100000, value=0)
+        ves_count = st.number_input("VES (ventriculaire extrasystolen)", min_value=0, max_value=100000, value=st.session_state.get("holter_ves_count", 0), key="holter_ves_count")
     with c2:
-        sves_count = st.number_input("SVES (supraventriculaire extrasystolen)", min_value=0, max_value=100000, value=0)
+        sves_count = st.number_input("SVES (supraventriculaire extrasystolen)", min_value=0, max_value=100000, value=st.session_state.get("holter_sves_count", 0), key="holter_sves_count")
 
-    other_findings = st.text_area("Overige bevindingen", value="", height=100)
+    other_findings = st.text_area("Overige bevindingen", value=st.session_state.get("holter_other_findings", ""), height=100, key="holter_other_findings")
 
     measurements = HolterMeasurements(
         patient=patient_ctx,
@@ -2297,7 +2353,7 @@ if 'module' in globals() and module == "Holter":
         recording_duration_hours=recording_duration,
         avg_hr=avg_hr if avg_hr > 0 else None,
         min_hr=min_hr if min_hr > 0 else None,
-        max_hr=max_hr if max_hr > 0 else None,
+        max_hr=max_hr_holter if max_hr_holter > 0 else None,
         afib_percentage=afib_percentage if afib_percentage > 0 else None,
         pauses_count=pauses_count if pauses_count > 0 else None,
         longest_pause_ms=longest_pause_ms if longest_pause_ms > 0 else None,
