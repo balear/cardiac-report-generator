@@ -449,14 +449,14 @@ with st.sidebar:
         st.session_state["selected_module"] = pending_module
 
     # Module navigation with option_menu
+    module_options = ["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief", "Beleid"]
+    module_icons = ["heart-pulse", "bicycle", "activity", "clock-history", "cpu", "envelope", "clipboard-check"]
     module = option_menu(
         menu_title="Module",
-        options=["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief"],
-        icons=["heart-pulse", "bicycle", "activity", "clock-history", "cpu", "envelope"],
+        options=module_options,
+        icons=module_icons,
         menu_icon="grid",
-        default_index=["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief"].index(
-            st.session_state.get("selected_module", "Echo")
-        ) if st.session_state.get("selected_module", "Echo") in ["Echo", "Fietstest", "ECG", "Holter", "CIED follow-up", "Brief"] else 0,
+        default_index=module_options.index(st.session_state.get("selected_module", "Echo")) if st.session_state.get("selected_module", "Echo") in module_options else 0,
         key="selected_module",
         styles={
             # lighter container to match the rest of the sidebar
@@ -2296,6 +2296,76 @@ if 'module' in globals() and module == "CIED follow-up":
         st.subheader("Gegenereerd CIED Verslag")
         show_report_actions(final)
         st.stop()
+
+
+# -----------------------------
+# Beleid module (klinische plannen)
+# -----------------------------
+if module == "Beleid":
+    st.header("Beleid — klinische plannen")
+    st.markdown("Kies een diagnose of klinisch scenario en genereer een gestandaardiseerd plan.")
+
+    scenario_options = [
+        "Dyspnee Workup dr. Ballet",
+        "Algemeen cardiologisch beleid (voorbeeld)",
+    ]
+    scenario = st.selectbox("Scenario", scenario_options, index=scenario_options.index(st.session_state.get("beleid_scenario", "Dyspnee Workup dr. Ballet")), key="beleid_scenario")
+
+    # Default test list for Dyspnee Workup
+    dyspnee_tests = [
+        "Volledige celtelling",
+        "Nierfunctie",
+        "Elektrolyten",
+        "CK",
+        "TSH/T4",
+        "IJzerstatus",
+        "HbA1C",
+        "Glucose",
+        "NT-proBNP",
+        "CT coronairen / coronarografie (bij vermoeden coronair lijden)",
+        "Holter monitoring (bij vermoeden aritmie)",
+        "RX thorax F/P of Low dose CT thorax",
+        "Volledige longfunctie (+ FeNO bij vermoeden astma)",
+        "Electrocardiogram (ECG)",
+        "Transthoracale echocardiografie (TTE)",
+        "Fietsproef",
+        "Ligfiets echocardiografie (indicaties volgens richtlijn)",
+        "Cardiopulmonale exercise testing (CPET) indien negatieve eerdere tests",
+        "Rechter hartcatheterisatie (RHC) bij vermoeden pulmonale hypertensie",
+        "CT sinussen (bovenste luchtweg)",
+        "Spierbiopsie (vermoeden myopathie)",
+        "V/Q scan (CTEPH vermoeden)",
+        "Gastroscopie (vermoeden GERD)",
+        "Cardiale MRI (vermoeden cardiomyopathie)",
+        "Botscan (vermoeden amyloïdose)",
+    ]
+
+    if scenario == "Dyspnee Workup dr. Ballet":
+        selected_tests = st.multiselect("Aanbevolen onderzoeken (selecteer/haal weg)", dyspnee_tests, default=st.session_state.get("beleid_dyspnee_selected", dyspnee_tests), key="beleid_dyspnee_selected")
+    else:
+        selected_tests = st.multiselect("Aanbevolen onderzoeken (selecteer/haal weg)", dyspnee_tests, default=st.session_state.get("beleid_generic_selected", []), key="beleid_generic_selected")
+
+    extra_notes = st.text_area("Extra opmerkingen / klinisch commentaar", value=st.session_state.get("beleid_extra_notes", ""), height=100, key="beleid_extra_notes")
+
+    # Build plan text
+    plan_lines = [f"Beleid: {scenario}", "", "Aanbevolen onderzoeken en acties:"]
+    for t in selected_tests:
+        plan_lines.append(f"- {t}")
+    if extra_notes and extra_notes.strip():
+        plan_lines.append("")
+        plan_lines.append("Opmerkingen:")
+        plan_lines.append(extra_notes.strip())
+
+    plan_text = "\n".join(plan_lines)
+
+    st.subheader("Gegenereerd plan")
+    show_report_actions(plan_text, file_name="beleid_plan.txt")
+
+    if st.button("Opslaan beleid lokaal"):
+        # remember as brief section under a 'beleid' key so it can be reused
+        _remember_brief_section("beleid_plan", plan_text, patient_ctx.patient_id if patient_ctx else None, datetime.date.today().isoformat())
+        st.success("Beleid lokaal opgeslagen.")
+    st.stop()
 
     # End CIED module — prevent rendering of subsequent modules when CIED selected
     st.stop()
